@@ -1,0 +1,125 @@
+// schema.prisma
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+enum PdfStatus {
+  PROCESSING
+  READY
+  FAILED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String   // bcrypt hash — NEVER store plaintext, NEVER store the raw bcrypt cost separately
+  createdAt    DateTime @default(now())
+
+  pdfs         Pdf[]
+  comments     Comment[]
+  chatMessages ChatMessage[]
+
+  @@index([email]) // login lookups
+}
+
+model Pdf {
+  id           String    @id @default(cuid())
+  filename     String
+  storageKey   String    // path/key in S3/Supabase Storage — NOT the file itself
+  status       PdfStatus @default(PROCESSING)
+  extractedText String?  @db.Text   // raw extracted text, kept for re-processing/debugging
+  summary      String?   @db.Text
+  ownerId      String
+  owner        User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  shares       Share[]
+  comments     Comment[]
+  chatMessages ChatMessage[]
+  chunks       PdfChunk[]
+
+  @@index([ownerId, createdAt]) // dashboard: "my PDFs, newest first"
+  @@index([ownerId, filename])  // dashboard filename search, scoped to owner
+}
+
+model Share {
+  id          String    @id @default(cuid())
+  pdfId       String
+  pdf         Pdf       @relation(fields: [pdfId], references: [id], onDelete: Cascade)
+  token       String    @unique // random 32-byte base64url — the "unique shareable link"
+  inviteeEmail String?         // optional: for the good-to-have email notification
+  expiresAt   DateTime?       // optional TTL for the link (future-proofing hook)
+  createdAt   DateTime  @default(now())
+
+  @@index([token]) // every invited-user request looks this up — must be fast
+  @@index([pdfId])
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  pdfId     String
+  pdf       Pdf       @relation(fields: [pdfId], references: [id], onDelete: Cascade)
+
+  // Comments can come from an authenticated User OR an anonymous invited guest —
+  // both must be representable, so authorId is nullable and guestName covers the fallback.
+  authorId   String?
+  author     User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  guestName  String?  // display name captured from an invited (unauthenticated) user
+
+  content    String   @db.Text
+  pageNumber Int?     // optional: page or slide number the comment is attached to
+  parentId   String?  // self-relation — enables threaded replies (good-to-have #3) without a schema change later
+  parent     Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    Comment[] @relation("CommentReplies")
+
+  createdAt  DateTime @default(now())
+
+  @@index([pdfId, createdAt]) // sidebar: comments for this PDF, chronological
+  @@index([parentId])
+  @@index([pdfId, pageNumber])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  pdfId     String
+  pdf       Pdf      @relation(fields: [pdfId], references: [id], onDelete: Cascade)
+
+  // Same authenticated-or-guest pattern as Comment. sessionId groups a guest's
+  // conversation turns together (e.g. a random ID stored in a cookie) so "last 3-5 turns"
+  // is well-defined even for anonymous invited users.
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  sessionId String   // groups messages into one conversation thread
+
+  role      String   // "user" | "assistant"
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([pdfId, sessionId, createdAt]) // "give me the last N turns of this conversation"
+}
+
+model PdfChunk {
+  id        String                 @id @default(cuid())
+  pdfId     String
+  pdf       Pdf                    @relation(fields: [pdfId], references: [id], onDelete: Cascade)
+  chunkIndex Int                   // order within the document
+  pageNumber Int?                  // 1-indexed page or slide number for citations
+  summary   String?                @db.Text // per-chunk map-step summary for broad-question routing
+  content   String                 @db.Text
+  embedding Unsupported("vector(3072)") // pgvector column — dimension matches Gemini gemini-embedding-2
+
+  @@index([pdfId])
+  @@index([pdfId, pageNumber])
+  // Vector similarity index (created via raw SQL migration, Prisma can't express this natively):
+  // CREATE INDEX pdf_chunk_embedding_idx ON "PdfChunk" USING ivfflat (embedding vector_cosine_ops);
+}
