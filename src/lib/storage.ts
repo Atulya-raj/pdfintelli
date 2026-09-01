@@ -6,7 +6,10 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const endpoint = process.env.S3_ENDPOINT;
+const rawEndpoint = process.env.S3_ENDPOINT || process.env.R2_ENDPOINT;
+const isValidEndpoint = typeof rawEndpoint === "string" && rawEndpoint.trim().length > 0 && (rawEndpoint.startsWith("http://") || rawEndpoint.startsWith("https://"));
+const endpoint = isValidEndpoint ? rawEndpoint.trim() : undefined;
+
 const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
 const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 const bucketName = process.env.S3_BUCKET_NAME || "pdf-intelligence-storage";
@@ -14,7 +17,7 @@ const region = process.env.S3_REGION || "auto";
 
 export const s3Client = new S3Client({
   region,
-  endpoint,
+  ...(endpoint ? { endpoint } : {}),
   credentials:
     accessKeyId && secretAccessKey
       ? {
@@ -22,7 +25,6 @@ export const s3Client = new S3Client({
           secretAccessKey,
         }
       : undefined,
-  // Cloudflare R2 and most S3 providers require path-style URLs disabled or standard virtual-hosted
   forcePathStyle: false,
 });
 
@@ -68,12 +70,18 @@ export async function getDownloadPresignedUrl(
   storageKey: string,
   expiresInSeconds: number = 3600
 ): Promise<string> {
-  const command = new GetObjectCommand({
-    Bucket: bucketName,
-    Key: storageKey,
-  });
+  if (!endpoint) return "";
+  try {
+    const command = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: storageKey,
+    });
 
-  return getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
+    return await getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
+  } catch (err) {
+    console.error("[Storage] Failed to generate presigned URL:", err);
+    return "";
+  }
 }
 
 /**
