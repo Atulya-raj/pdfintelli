@@ -42,14 +42,14 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-[#fbfbf9] text-zinc-900 dark:bg-[#09090c] dark:text-zinc-100 p-4 transition-colors duration-400">
-      {/* Ambient background glows */}
-      <div className="sylven-ambient-glow -top-32 -left-32 h-96 w-96 bg-[#80e9ff] dark:bg-[#80e9ff]/10 pointer-events-none" />
-      <div className="sylven-ambient-glow -top-20 -right-20 h-[450px] w-[450px] bg-[#d4ff3a] dark:bg-[#d4ff3a]/10 pointer-events-none" />
+    <div className="relative flex min-h-screen w-full max-w-[100vw] items-center justify-center overflow-x-hidden bg-[#fbfbf9] text-zinc-900 dark:bg-[#09090c] dark:text-zinc-100 p-4 transition-colors duration-400">
+      {/* Ambient background glows with containment */}
+      <div className="sylven-ambient-glow -top-32 -left-32 h-72 w-72 sm:h-96 sm:w-96 bg-[#80e9ff] dark:bg-[#80e9ff]/10 pointer-events-none" />
+      <div className="sylven-ambient-glow -top-20 -right-20 h-72 w-72 sm:h-[450px] sm:w-[450px] bg-[#d4ff3a] dark:bg-[#d4ff3a]/10 pointer-events-none" />
 
       {/* Hanging Pull-String Theme Switch (fixed top-right anchor) */}
-      <div className="fixed top-0 right-4 sm:right-8 md:right-12 z-50 pointer-events-none">
-        <PullStringThemeSwitch stringLength={70} />
+      <div className="fixed top-0 right-2 sm:right-8 md:right-12 z-50 pointer-events-none">
+        <PullStringThemeSwitch stringLength={45} />
       </div>
 
       <div className="relative z-10 w-full max-w-md space-y-8 rounded-3xl border border-zinc-200/80 bg-white/80 p-8 shadow-2xl backdrop-blur-xl dark:border-zinc-800/80 dark:bg-zinc-900/80 transition-all">

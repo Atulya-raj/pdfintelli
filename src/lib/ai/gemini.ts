@@ -10,10 +10,6 @@ export interface ModelSpec {
 }
 
 export const MODEL_SPECS: Record<string, ModelSpec> = {
-  "gemini-3.6-flash": {
-    contextWindow: 1_048_576,
-    maxOutputTokens: 8_192,
-  },
   "gemini-flash-lite-latest": {
     contextWindow: 1_048_576,
     maxOutputTokens: 8_192,
@@ -26,7 +22,11 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
     contextWindow: 1_048_576,
     maxOutputTokens: 8_192,
   },
-  "gemini-3.5-flash": {
+  "gemini-2.5-flash-lite": {
+    contextWindow: 1_048_576,
+    maxOutputTokens: 8_192,
+  },
+  "gemini-3.6-flash": {
     contextWindow: 1_048_576,
     maxOutputTokens: 8_192,
   },
@@ -37,11 +37,11 @@ export const MODEL_SPECS: Record<string, ModelSpec> = {
 };
 
 export const GEMINI_CHAT_MODELS = [
-  "gemini-3.6-flash",
   "gemini-flash-lite-latest",
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
-  "gemini-3.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-3.6-flash",
   "gemini-3.7-flash",
 ];
 
@@ -167,6 +167,7 @@ export async function* streamGeminiWithFallback(
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(10000),
         body: JSON.stringify({
           contents: [{ parts: [{ text: promptText }] }],
           generationConfig: {

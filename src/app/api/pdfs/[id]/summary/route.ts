@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { canAccessPdf } from "@/lib/permissions";
 import { getFileBuffer } from "@/lib/storage";
 import pdfParse from "pdf-parse";
-import { summarizePdf } from "@/lib/ai/summarize";
+import { generateSummaryOnly } from "@/lib/ai/summarize";
 
 export async function POST(
   req: Request,
@@ -66,8 +66,8 @@ export async function POST(
       data: { status: "PROCESSING" },
     });
 
-    // Run summarization & chunking synchronously or await it so the response has the fresh summary
-    await summarizePdf(pdf.id, textToSummarize);
+    // Run fast executive summary generation
+    await generateSummaryOnly(pdf.id, textToSummarize);
 
     const updatedPdf = await db.pdf.findUnique({
       where: { id: pdf.id },

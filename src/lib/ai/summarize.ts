@@ -221,6 +221,48 @@ async function generateExecutiveSummary(
   };
 }
 
+export async function generateSummaryOnly(pdfId: string, extractedText: string): Promise<string> {
+  try {
+    if (!extractedText || extractedText.trim().length === 0) {
+      const fallback = "No text could be extracted from this document to summarize.";
+      await db.pdf.update({
+        where: { id: pdfId },
+        data: { summary: fallback, status: "READY" },
+      });
+      return fallback;
+    }
+
+    const chunks = await chunkTextByLogicalUnit(extractedText);
+    if (chunks.length === 0) {
+      const fallback = "Document content was empty.";
+      await db.pdf.update({
+        where: { id: pdfId },
+        data: { summary: fallback, status: "READY" },
+      });
+      return fallback;
+    }
+
+    const { summary: finalSummary } = await generateExecutiveSummary(
+      extractedText,
+      chunks,
+      GEMINI_CHAT_MODELS[0]
+    );
+
+    await db.pdf.update({
+      where: { id: pdfId },
+      data: {
+        summary: finalSummary,
+        status: "READY",
+      },
+    });
+
+    return finalSummary;
+  } catch (error: any) {
+    console.error(`Failed to generate summary for PDF ${pdfId}:`, error);
+    throw error;
+  }
+}
+
 export async function summarizePdf(pdfId: string, extractedText: string) {
   try {
     if (!extractedText || extractedText.trim().length === 0) {

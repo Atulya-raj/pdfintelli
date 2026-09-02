@@ -101,6 +101,17 @@ export default function PdfViewerClient({
 
   // Mobile Responsiveness State
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [viewerEngine, setViewerEngine] = useState<"google" | "native" | "reader">("native");
+
+  // On mobile devices, default to Google Docs viewer to avoid Android Chrome iframe PDF block
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile) {
+        setViewerEngine("google");
+      }
+    }
+  }, []);
 
   // Estimate total pages from extracted text or chunk data for page selector
   const estimatedPages = useMemo(() => {
@@ -116,6 +127,14 @@ export default function PdfViewerClient({
     const pageParam = targetPage ? `page=${targetPage}&` : "";
     return `${viewUrl}${separator}${pageParam}toolbar=1&navpanes=0`;
   }, [viewUrl, targetPage]);
+
+  // Embedded web viewer URL (Google Docs viewer renders PDF canvas on all mobile browsers)
+  const googleDocsViewerUrl = useMemo(() => {
+    if (!viewUrl) return "";
+    return `https://docs.google.com/viewer?url=${encodeURIComponent(viewUrl)}&embedded=true`;
+  }, [viewUrl]);
+
+  const activeViewerUrl = viewerEngine === "google" ? googleDocsViewerUrl : viewerUrl;
 
   // Contextual suggestion chips for AI Chat
   const suggestionChips = [
@@ -447,9 +466,9 @@ export default function PdfViewerClient({
       <div className="sylven-ambient-glow -top-32 -left-32 h-80 w-80 md:h-96 md:w-96 bg-[#80e9ff] dark:bg-[#80e9ff]/10 pointer-events-none z-0" />
       <div className="sylven-ambient-glow -top-20 -right-20 h-80 w-80 md:h-[450px] md:w-[450px] bg-[#d4ff3a] dark:bg-[#d4ff3a]/10 pointer-events-none z-0" />
 
-      {/* Hanging Pull-String Theme Switch (fixed top-right anchor) */}
-      <div className="fixed top-0 right-2 sm:right-6 md:right-10 z-[999]">
-        <PullStringThemeSwitch stringLength={54} />
+      {/* Hanging Pull-String Theme Switch (fixed top-right anchor, hides when mobile drawer is open) */}
+      <div className={`fixed top-0 right-2 sm:right-6 md:right-10 z-[40] transition-opacity duration-200 ${isMobileSidebarOpen ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
+        <PullStringThemeSwitch stringLength={36} />
       </div>
 
       {/* Top Studio Navigation Header */}
@@ -484,8 +503,8 @@ export default function PdfViewerClient({
           )}
         </div>
 
-        {/* Right Actions */}
-        <div className="flex items-center justify-end gap-1.5 sm:gap-3 shrink-0 pr-12 sm:pr-16 md:pr-20">
+        {/* Right Actions (padded on right so pull-string bulb never overlaps) */}
+        <div className="flex items-center justify-end gap-1.5 sm:gap-3 shrink-0 pr-16 sm:pr-18 md:pr-20">
           {reprocessStatus && (
             <span className="hidden md:inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 text-[11px] font-mono text-cyan-600 dark:text-cyan-400">
               <RefreshCw className="h-3 w-3 animate-spin" />
@@ -533,14 +552,84 @@ export default function PdfViewerClient({
 
       {/* Main Workspace (Split View) */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Left: PDF Document Viewer */}
-        <div className="flex-1 bg-[var(--surface-subtle)] p-1.5 sm:p-3 flex flex-col w-full min-h-0 overflow-hidden">
+        {/* Left: PDF Document Viewer & Mobile Multi-Engine Switcher */}
+        <div className="flex-1 bg-[var(--surface-subtle)] p-1 sm:p-3 flex flex-col w-full min-h-0 overflow-hidden">
           <div className="flex-1 w-full rounded-2xl bg-[var(--surface-card)] shadow-xl ring-1 ring-[var(--border-main)] relative overflow-hidden flex flex-col">
-            <iframe
-              src={viewerUrl}
-              className="w-full h-full border-0 flex-1"
-              title={pdf.filename}
-            />
+            
+            {/* Viewer Toolbar: Engine / Mode Toggle */}
+            <div className="flex items-center justify-between border-b border-[var(--border-main)] bg-[var(--surface-subtle)]/70 px-2 sm:px-4 py-1.5 text-xs">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setViewerEngine("google")}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                    viewerEngine === "google"
+                      ? "bg-[var(--accent-action)] text-[var(--accent-action-text)] shadow-xs"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                  }`}
+                  title="Mobile-compatible web document viewer"
+                >
+                  Web Preview
+                </button>
+                <button
+                  onClick={() => setViewerEngine("native")}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                    viewerEngine === "native"
+                      ? "bg-[var(--accent-action)] text-[var(--accent-action-text)] shadow-xs"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                  }`}
+                  title="Direct PDF view"
+                >
+                  Native PDF
+                </button>
+                {pdf.extractedText && (
+                  <button
+                    onClick={() => setViewerEngine("reader")}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                      viewerEngine === "reader"
+                        ? "bg-[var(--accent-action)] text-[var(--accent-action-text)] shadow-xs"
+                        : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                    }`}
+                    title="Slide-by-slide text reading mode"
+                  >
+                    Text Reader
+                  </button>
+                )}
+              </div>
+
+              {/* Direct Open in New Window Link */}
+              {viewUrl && (
+                <a
+                  href={viewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-main)] bg-[var(--surface-card)] px-2 py-1 text-[10px] font-mono font-medium text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
+                  title="Open PDF directly in a new browser tab"
+                >
+                  <span>Open Full PDF</span>
+                  <CornerDownRight className="h-2.5 w-2.5" />
+                </a>
+              )}
+            </div>
+
+            {/* Document Body: Reader Mode or Embedded Iframe */}
+            {viewerEngine === "reader" && pdf.extractedText ? (
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 max-w-4xl mx-auto w-full">
+                <div className="rounded-xl border border-[var(--border-main)] bg-[var(--surface-subtle)] p-3 text-xs font-mono text-[var(--text-muted)] flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-emerald-500 dark:text-[#d4ff3a]" />
+                  <span>Reader Mode — Clean, mobile-friendly text breakdown by slide/page</span>
+                </div>
+                <div className="rounded-2xl border border-[var(--border-main)] bg-[var(--surface-card)] p-4 sm:p-6">
+                  <FormattedText content={pdf.extractedText} />
+                </div>
+              </div>
+            ) : (
+              <iframe
+                src={activeViewerUrl}
+                className="w-full h-full border-0 flex-1 bg-white"
+                title={pdf.filename}
+                allow="fullscreen"
+              />
+            )}
           </div>
         </div>
 
