@@ -15,7 +15,15 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
+const siteUrl =
+  process.env.NEXTAUTH_URL && process.env.NEXTAUTH_URL.startsWith("http")
+    ? process.env.NEXTAUTH_URL
+    : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "PDF Intelligence — Smart Document Studio",
   description: "Upload, summarize, search, and collaborate on PDF documents.",
   icons: {

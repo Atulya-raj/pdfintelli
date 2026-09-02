@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { db } from "./db";
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET || "development_secret_do_not_use_in_prod",
   providers: [
     CredentialsProvider({
       name: "Credentials",
